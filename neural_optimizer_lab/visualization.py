@@ -34,23 +34,84 @@ CLASS_COLORS = {0: "#56C8FF", 1: "#FF5DB1"}
 
 
 def _style_axis(ax) -> None:
+    """Єдиний стиль для всіх графіків."""
     ax.set_facecolor(DARK_AXES)
-    ax.tick_params(colors=TEXT, labelsize=9)
+
+    ax.tick_params(
+        axis="both",
+        colors=TEXT,
+        labelsize=11,
+        pad=7,
+        width=1.1,
+        length=5,
+    )
+
     ax.xaxis.label.set_color(TEXT)
     ax.yaxis.label.set_color(TEXT)
     ax.title.set_color(TEXT)
+
+    ax.xaxis.label.set_size(13)
+    ax.yaxis.label.set_size(13)
+    ax.title.set_size(16)
+
+    ax.set_axisbelow(True)
+
     for spine in ax.spines.values():
         spine.set_color(GRID)
-    ax.grid(True, alpha=0.25, color=GRID)
+        spine.set_linewidth(1.1)
+
+    ax.grid(
+        True,
+        which="major",
+        alpha=0.22,
+        color=GRID,
+        linewidth=0.8,
+    )
+
+
 
 
 def _save_figure(fig, path: Path) -> None:
-    fig.savefig(path, dpi=160, bbox_inches="tight", facecolor=fig.get_facecolor())
+    """
+    Зберігає графік у високій роздільності
+    та додатково у векторних форматах.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    facecolor = fig.get_facecolor()
+
+    # PNG для відображення в програмі.
+    fig.savefig(
+        path,
+        dpi=320,
+        bbox_inches="tight",
+        facecolor=facecolor,
+        pad_inches=0.2,
+    )
+
+    # SVG — векторне зображення.
+    fig.savefig(
+        path.with_suffix(".svg"),
+        format="svg",
+        bbox_inches="tight",
+        facecolor=facecolor,
+        pad_inches=0.2,
+    )
+
+    # PDF — для перегляду та друку.
+    fig.savefig(
+        path.with_suffix(".pdf"),
+        format="pdf",
+        bbox_inches="tight",
+        facecolor=facecolor,
+        pad_inches=0.2,
+    )
+
     plt.close(fig)
 
 
 def plot_dataset(data: DatasetSplit, output_path: Path) -> None:
-    fig, ax = plt.subplots(figsize=(7.2, 5.2), facecolor=DARK_BG)
+    fig, ax = plt.subplots(figsize=(10.5,7.0), facecolor=DARK_BG)
     for label, color, name in ((0, CLASS_COLORS[0], "Клас 0"), (1, CLASS_COLORS[1], "Клас 1")):
         mask = data.y_train == label
         ax.scatter(data.X_train[mask, 0], data.X_train[mask, 1], s=22, alpha=0.78, c=color, label=f"{name} · навчання", edgecolors="none")
@@ -75,15 +136,33 @@ def plot_losses(dataset_name: str, title: str, histories: list[dict[str, Any]], 
     if frame.empty:
         return
     grouped = frame.groupby(["optimizer", "epoch"])["train_loss"].agg(mean="mean", std="std").reset_index()
-    fig, ax = plt.subplots(figsize=(8.3, 5.2), facecolor=DARK_BG)
+    fig, ax = plt.subplots(figsize=(11.0, 7.0), facecolor=DARK_BG)
     for optimizer, part in grouped.groupby("optimizer"):
         part = part.sort_values("epoch")
         means = part["mean"].to_numpy(dtype=float)
         stds = part["std"].fillna(0.0).to_numpy(dtype=float)
         epochs = part["epoch"].to_numpy(dtype=float)
         color = COLORS.get(optimizer)
-        ax.plot(epochs, means, label=optimizer, color=color, linewidth=2.0, linestyle=LINESTYLES.get(optimizer, "-"))
-        ax.fill_between(epochs, np.maximum(0.0, means - stds), means + stds, color=color, alpha=0.12, linewidth=0)
+        ax.plot(
+    epochs,
+    means,
+    label=optimizer,
+    color=color,
+    linewidth=2.8,
+    linestyle=LINESTYLES.get(optimizer, "-"),
+    marker="o",
+    markersize=3.5,
+    markevery=max(1, len(epochs) // 12),
+)
+
+    ax.fill_between(
+    epochs,
+    np.maximum(0.0, means - stds),
+    means + stds,
+    color=color,
+    alpha=0.18,
+    linewidth=0,
+)
     ax.set_title(f"Зміна навчальної BCE · {title} · lr={base_lr:g}", fontsize=12, pad=12)
     ax.set_xlabel("Епоха")
     ax.set_ylabel("Binary Cross-Entropy (менше — краще)")
@@ -104,7 +183,7 @@ def plot_accuracy(dataset_name: str, title: str, runs: list[dict[str, Any]], bas
         return
     grouped = frame.groupby("optimizer")["test_accuracy"].agg(["mean", "std"])
     order = [name for name in ("SGD", "Momentum", "RMSProp", "Adam") if name in grouped.index]
-    fig, ax = plt.subplots(figsize=(7.7, 5.0), facecolor=DARK_BG)
+    fig, ax = plt.subplots(figsize=(10.5, 6.5), facecolor=DARK_BG)
     means = grouped.loc[order, "mean"].to_numpy() * 100
     errors = grouped.loc[order, "std"].fillna(0).to_numpy() * 100
     ax.bar(order, means, yerr=errors, capsize=5, color=[COLORS.get(x) for x in order], alpha=0.95, edgecolor=GRID)
@@ -163,7 +242,7 @@ def plot_convergence(
         denominator = max(1, len(part))
         success_rates.append(100.0 * float(part["_target_reached"].sum()) / denominator)
 
-    fig, ax = plt.subplots(figsize=(8.1, 5.0), facecolor=DARK_BG)
+    fig, ax = plt.subplots(figsize=(10.5, 6.5), facecolor=DARK_BG)
     positions = np.arange(len(order))
     valid = np.isfinite(means)
     target_text = f"BCE ≤ {target_loss:g}" if target_loss is not None else "цільову BCE"
@@ -232,7 +311,7 @@ def plot_learning_rate(dataset_name: str, title: str, runs: list[dict[str, Any]]
         test_accuracy=("test_accuracy", "mean"),
         final_test_loss=("final_test_loss", "mean"),
     )
-    fig, ax = plt.subplots(figsize=(8.1, 5.0), facecolor=DARK_BG)
+    fig, ax = plt.subplots(figsize=(10.5, 6.5), facecolor=DARK_BG)
     for optimizer, part in grouped.groupby("optimizer"):
         part = part.sort_values("learning_rate")
         ax.plot(part["learning_rate"], 100 * part["test_accuracy"], marker="o", linewidth=2,
@@ -272,10 +351,13 @@ def plot_decision_boundary(data: DatasetSplit, candidate, output_path: Path) -> 
     pad = 0.45
     x_min, x_max = X_all[:, 0].min() - pad, X_all[:, 0].max() + pad
     y_min, y_max = X_all[:, 1].min() - pad, X_all[:, 1].max() + pad
-    xx, yy = np.meshgrid(np.linspace(x_min, x_max, 220), np.linspace(y_min, y_max, 220))
+    xx, yy = np.meshgrid(
+    np.linspace(x_min, x_max, 320),
+    np.linspace(y_min, y_max, 320),
+)
     grid = np.column_stack([xx.ravel(), yy.ravel()])
     zz = model.predict_proba(grid).reshape(xx.shape)
-    fig, ax = plt.subplots(figsize=(7.3, 5.4), facecolor=DARK_BG)
+    fig, ax = plt.subplots(figsize=(10.5, 7.5), facecolor=DARK_BG)
     ax.contourf(xx, yy, zz, levels=np.linspace(0, 1, 12), cmap="coolwarm", alpha=0.42, vmin=0, vmax=1)
     ax.contour(xx, yy, zz, levels=[0.5], colors=["#FFFFFF"], linewidths=1.8)
     for label, color, name in ((0, CLASS_COLORS[0], "Клас 0"), (1, CLASS_COLORS[1], "Клас 1")):
